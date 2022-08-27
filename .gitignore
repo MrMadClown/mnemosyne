@@ -1,0 +1,7 @@
+.idea
+.DS_STORE
+.phpunit.result.cache
+vendor
+coverage
+composer.phar
+.infection-cache/

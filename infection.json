@@ -1,0 +1,19 @@
+{
+    "$schema": "https://raw.githubusercontent.com/infection/infection/0.26.0/resources/schema.json",
+    "source": {
+        "directories": [
+            "src"
+        ]
+    },
+    "mutators": {
+        "@default": true
+    },
+    "tmpDir": ".infection-cache",
+    "logs": {
+        "text": ".infection-cache/log/infection.log",
+        "html": ".infection-cache/log/infection.html",
+        "summary": ".infection-cache/log/summary.log",
+        "json": ".infection-cache/log/infection-log.json",
+        "perMutator": ".infection-cache/log/per-mutator.md"
+    }
+}
