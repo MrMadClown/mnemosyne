@@ -161,6 +161,26 @@ class BuilderTest extends TestCase
             ->fetchAll();
     }
 
+    public function testSelectWhereNestedVariableExpression()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE hashed_id = crc32(floor(?));')
+            ->willReturn($statement);
+
+        $statement->expects(static::once())
+            ->method('bindValue')
+            ->with(1, 13.5, PDO::PARAM_STR);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('hashed_id', VariableExpression::crc32(VariableExpression::floor(13.5)))
+            ->fetchAll();
+    }
+
     public function testSelectWhereBool()
     {
         $statement = $this->mockStatement();

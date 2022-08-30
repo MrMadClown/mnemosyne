@@ -16,8 +16,20 @@ class VariableExpression extends Expression
 
     public static function __callStatic(string $method, array $args): Expression
     {
-        $param = implode(', ', array_fill(0, count($args), '?'));
+        $bindings = [];
+        $param = implode(', ', array_map(function (mixed $val) use (&$bindings): string {
+            if ($val instanceof Expression) {
+                if ($val instanceof VariableExpression) {
+                    foreach ($val->getBindings() as $binding) {
+                        $bindings[] = $binding;
+                    }
+                }
+                return (string)$val;
+            }
+            $bindings[] = $val;
+            return '?';
+        }, $args));
 
-        return new VariableExpression(sprintf('%s(%s)', $method, $param), $args);
+        return new VariableExpression(sprintf('%s(%s)', $method, $param), $bindings);
     }
 }

@@ -222,14 +222,9 @@ class Builder
     protected function compileUpdate(array $values): string
     {
         $setString = implode(', ', array_map(function ($column, $value) {
-            if ($value instanceof Expression) {
-                if ($value instanceof VariableExpression) {
-                    $this->addBindings($value->getBindings());
-                }
-                return "$column = $value";
-            }
-            $this->addBinding($value);
-            return "$column = ?";
+            $param = $this->compileBinding($value);
+
+            return "$column = $param";
         }, array_keys($values), $values));
 
         return $this->processLimit($this->processOrderBy($this->processWheres("UPDATE $this->table SET $setString"))) . ';';
@@ -237,17 +232,7 @@ class Builder
 
     protected function compileInsert(array $values, bool $ignore = false): string
     {
-        $valueParam = implode(', ', array_map(function ($column, $value) {
-            if ($value instanceof Expression) {
-                if ($value instanceof VariableExpression) {
-                    $this->addBindings($value->getBindings());
-                }
-                return (string)$value;
-            }
-            $this->addBinding($value);
-            return '?';
-        }, array_keys($values), $values));
-
+        $valueParam = $this->compileArrayBinding($values);
         $columns = implode(', ', array_keys($values));
         $insert = $ignore ? 'INSERT IGNORE' : 'INSERT';
         return "$insert INTO $this->table ($columns) VALUES ($valueParam);";
@@ -257,7 +242,6 @@ class Builder
     {
         return $this->processLimit($this->processOrderBy($this->processWheres("DELETE FROM $this->table"))) . ';';
     }
-
 
     protected function compileWheres(array $wheres): string
     {
@@ -279,24 +263,32 @@ class Builder
 
     protected function compileWhere(Where $where, bool $withBoolean = false): string
     {
-        $compiled = $withBoolean
-            ? "{$where->boolean->value} $where->column {$where->operator->value}"
-            : "$where->column {$where->operator->value}";
         if ($where->operator->expectsArray() && is_array($where->value)) {
-            $this->addBindings($where->value);
-            $param = implode(', ', array_fill(0, count($where->value), '?'));
-            return "$compiled ($param)";
+            $param = '(' . $this->compileArrayBinding($where->value) . ')';
         } else {
-            if ($where->value instanceof Expression) {
-                if ($where->value instanceof VariableExpression) {
-                    $this->addBindings($where->value->getBindings());
-                }
-                return "$compiled $where->value";
-            } else {
-                $this->addBinding($where->value);
-                return "$compiled ?";
-            }
+            $param = $this->compileBinding($where->value);
         }
+
+        return $withBoolean
+            ? "{$where->boolean->value} $where->column {$where->operator->value} $param"
+            : "$where->column {$where->operator->value} $param";
+    }
+
+    protected function compileArrayBinding(array $value): string
+    {
+        return implode(', ', array_map(fn(mixed $val): string => $this->compileBinding($val), $value));
+    }
+
+    protected function compileBinding(mixed $value): string
+    {
+        if ($value instanceof Expression) {
+            if ($value instanceof VariableExpression) {
+                $this->addBindings($value->getBindings());
+            }
+            return (string)$value;
+        }
+        $this->addBinding($value);
+        return '?';
     }
 
     protected function addBindings(array $bindings): void
@@ -318,7 +310,6 @@ class Builder
         };
     }
 
-
     protected function bindValues(PDOStatement $statement): void
     {
         foreach ($this->bindings as $idx => $binding) {
@@ -329,7 +320,7 @@ class Builder
     protected function processWheres(string $statement): string
     {
         if (!empty($this->wheres)) {
-            $statement .= ' WHERE ' . $this->compileWheres($this->wheres);
+            return implode(' ', [$statement, 'WHERE', $this->compileWheres($this->wheres)]);
         }
         return $statement;
     }
@@ -337,7 +328,7 @@ class Builder
     protected function processOrderBy(string $statement): string
     {
         if (isset($this->orderBy)) {
-            $statement .= " ORDER BY {$this->orderBy} {$this->orderByDirection->value}";
+            return implode(' ', [$statement, 'ORDER BY', $this->orderBy, $this->orderByDirection->value]);
         }
         return $statement;
     }
@@ -345,7 +336,7 @@ class Builder
     protected function processLimit(string $statement): string
     {
         if (isset($this->limit)) {
-            $statement .= " LIMIT {$this->limit}";
+            return implode(' ', [$statement, 'LIMIT', $this->limit]);
         }
         return $statement;
     }
@@ -353,7 +344,7 @@ class Builder
     protected function processGroupBy(string $statement): string
     {
         if (!empty($this->groupBy)) {
-            $statement .= ' GROUP BY ' . implode(', ', $this->groupBy);
+            return implode(' ', [$statement, 'GROUP BY', implode(', ', $this->groupBy)]);
         }
         return $statement;
     }
@@ -361,7 +352,7 @@ class Builder
     protected function processJoins(string $statement): string
     {
         if (!empty($this->joins)) {
-            $statement .= ' ' . implode(' ', $this->joins);
+            return implode(' ', [$statement, implode(' ', $this->joins)]);
         }
         return $statement;
     }
