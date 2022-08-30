@@ -1,9 +1,9 @@
 <?php
 
 use MrMadClown\Mnemosyne\Builder;
-use MrMadClown\Mnemosyne\Direction;
 use MrMadClown\Mnemosyne\Expression;
 use MrMadClown\Mnemosyne\Operator;
+use MrMadClown\Mnemosyne\VariableExpression;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -19,6 +19,21 @@ class BuilderTest extends TestCase
 
         (new Builder($pdo))
             ->setClassName('User')
+            ->from('users')
+            ->fetchAll();
+    }
+
+    public function testCountAll()
+    {
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT COUNT(*) FROM users;')
+            ->willReturn($this->mockStatement());
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->count()
             ->from('users')
             ->fetchAll();
     }
@@ -104,6 +119,45 @@ class BuilderTest extends TestCase
             ->setClassName('User')
             ->from('users')
             ->where('updated_at', new Expression('DATE(now())'), Operator::GREATER)
+            ->fetchAll();
+    }
+
+    public function testSelectWhereNestedExpression()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE updated_at > DATE(NOW());')
+            ->willReturn($statement);
+
+        $statement->expects(static::never())
+            ->method('bindValue');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('updated_at', Expression::DATE(Expression::NOW()), Operator::GREATER)
+            ->fetchAll();
+    }
+
+    public function testSelectWhereVariableExpression()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE hashed_id = crc32(?);')
+            ->willReturn($statement);
+
+        $statement->expects(static::once())
+            ->method('bindValue')
+            ->with(1, 'my-unique-user-id', PDO::PARAM_STR);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('hashed_id', VariableExpression::crc32('my-unique-user-id'))
             ->fetchAll();
     }
 
@@ -313,7 +367,7 @@ class BuilderTest extends TestCase
         $pdo = $this->mockPDO();
         $pdo->expects(static::once())
             ->method('prepare')
-            ->with('UPDATE users SET job = ?, updated_at = now() WHERE id = ?;')
+            ->with('UPDATE users SET job = ?, updated_at = NOW() WHERE id = ?;')
             ->willReturn($statement);
 
         $statement->expects(static::exactly(2))
@@ -325,7 +379,7 @@ class BuilderTest extends TestCase
             ->where('id', 12)
             ->update([
                 'job' => 'Software Developer',
-                'updated_at' => new Expression('now()')
+                'updated_at' => Expression::NOW()
             ]);
     }
 
@@ -335,7 +389,7 @@ class BuilderTest extends TestCase
         $pdo = $this->mockPDO();
         $pdo->expects(static::once())
             ->method('prepare')
-            ->with('INSERT INTO users (age, gender, job, updated_at) VALUES (?, ?, ?, now());')
+            ->with('INSERT INTO users (age, gender, job, updated_at) VALUES (?, ?, ?, NOW());')
             ->willReturn($statement);
 
         $statement->expects(static::exactly(3))
@@ -352,7 +406,7 @@ class BuilderTest extends TestCase
                 'age' => 25,
                 'gender' => 'non-binary',
                 'job' => 'Software Developer',
-                'updated_at' => new Expression('now()')
+                'updated_at' => Expression::NOW()
             ]);
     }
 
@@ -370,7 +424,7 @@ class BuilderTest extends TestCase
         $pdo = $this->mockPDO();
         $pdo->expects(static::once())
             ->method('prepare')
-            ->with('INSERT INTO settings (content, updated_at) VALUES (?, now());')
+            ->with('INSERT INTO settings (content, updated_at) VALUES (?, NOW());')
             ->willReturn($statement);
 
         $statement->expects(static::once())
@@ -383,10 +437,9 @@ class BuilderTest extends TestCase
             ->into('settings')
             ->insert([
                 'content' => $settings,
-                'updated_at' => new Expression('now()')
+                'updated_at' => Expression::NOW()
             ]);
     }
-
 
     public function testInsertIgnore()
     {

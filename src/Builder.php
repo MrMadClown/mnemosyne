@@ -26,6 +26,8 @@ class Builder
     {
     }
 
+    //<editor-fold description="public Builder interface">
+
     public function from(string $table): Builder
     {
         return $this->table($table);
@@ -48,6 +50,12 @@ class Builder
         return $this;
     }
 
+    public function count(string $column = '*'): Builder
+    {
+        $this->columns = ["COUNT($column)"];
+        return $this;
+    }
+
     public function where(
         callable|string $column,
         mixed           $value = null,
@@ -55,7 +63,7 @@ class Builder
         Logical         $boolean = Logical::AND
     ): Builder
     {
-        if (is_callable($column)) {
+        if (is_callable($column)) { //TODO function names
             if (!empty($this->wheres)) {
                 $wheres = $this->wheres;
                 $this->wheres = [];
@@ -80,7 +88,7 @@ class Builder
 
     public function orWhereNot(callable|string $column, mixed $value): Builder
     {
-        return $this->where($column, $value, Operator::NOT_EQUALS, Logical::OR);
+        return $this->orWhere($column, $value, Operator::NOT_EQUALS);
     }
 
     public function whereIsNull(string $column): Builder
@@ -123,6 +131,19 @@ class Builder
         return $this->orWhere($column, $value, Operator::NOT_IN);
     }
 
+    public function whereLike(string $column, string $value): Builder
+    {
+        return $this->where($column, $value, Operator::LIKE);
+    }
+
+    public function orWhereLike(string $column, string $value): Builder
+    {
+        return $this->orWhere($column, $value, Operator::LIKE);
+    }
+
+    /**
+     * @todo add callable as $left param type => call with new Builder instance => ad `as` method, should only compile select statements
+     */
     public function join(string $table, string $left, string $right, Operator $operator = Operator::EQUALS, JoinType $type = null): Builder
     {
         $this->joins[] = new Join($table, $left, $right, $operator, $type);
@@ -178,10 +199,14 @@ class Builder
         return $this->orderBy($orderBy, Direction::ASC);
     }
 
-    protected function compileSelect(): PDOStatement
+    //</editor-fold>
+
+    //<editor-fold description="Internal query Builder">
+
+    protected function compileSelect(): string
     {
         $columns = implode(', ', $this->columns);
-        $statement = $this->processLimit(
+        return $this->processLimit(
                 $this->processOrderBy(
                     $this->processGroupBy(
                         $this->processWheres(
@@ -192,29 +217,32 @@ class Builder
                     )
                 )
             ) . ';';
-
-        return $this->prepareStatement($statement);
     }
 
-    protected function compileUpdate(array $values): PDOStatement
+    protected function compileUpdate(array $values): string
     {
         $setString = implode(', ', array_map(function ($column, $value) {
             if ($value instanceof Expression) {
-                return "$column = {$value->expression}";
+                if ($value instanceof VariableExpression) {
+                    $this->addBindings($value->getBindings());
+                }
+                return "$column = $value";
             }
             $this->addBinding($value);
             return "$column = ?";
         }, array_keys($values), $values));
 
-        $statement = $this->processLimit($this->processOrderBy($this->processWheres("UPDATE $this->table SET $setString"))) . ';';
-        return $this->prepareStatement($statement);
+        return $this->processLimit($this->processOrderBy($this->processWheres("UPDATE $this->table SET $setString"))) . ';';
     }
 
-    protected function compileInsert(array $values, bool $ignore = false): PDOStatement
+    protected function compileInsert(array $values, bool $ignore = false): string
     {
         $valueParam = implode(', ', array_map(function ($column, $value) {
             if ($value instanceof Expression) {
-                return $value->expression;
+                if ($value instanceof VariableExpression) {
+                    $this->addBindings($value->getBindings());
+                }
+                return (string)$value;
             }
             $this->addBinding($value);
             return '?';
@@ -222,21 +250,19 @@ class Builder
 
         $columns = implode(', ', array_keys($values));
         $insert = $ignore ? 'INSERT IGNORE' : 'INSERT';
-        $statement = "$insert INTO $this->table ($columns) VALUES ($valueParam);";
-        return $this->connection->prepare($statement);
+        return "$insert INTO $this->table ($columns) VALUES ($valueParam);";
     }
 
-    protected function compileDelete(): PDOStatement
+    protected function compileDelete(): string
     {
-        $statement = $this->processLimit($this->processOrderBy($this->processWheres("DELETE FROM $this->table"))) . ';';
-
-        return $this->prepareStatement($statement);
+        return $this->processLimit($this->processOrderBy($this->processWheres("DELETE FROM $this->table"))) . ';';
     }
+
 
     protected function compileWheres(array $wheres): string
     {
         $wheres = array_filter($wheres, static fn($w) => !empty($w));
-        return implode(" ", array_map(function (array|Where $where, int $idx): string {
+        return implode(' ', array_map(function (array|Where $where, int $idx): string {
                 if ($where instanceof Where) {
                     return $this->compileWhere($where, $idx !== 0);
                 }
@@ -257,14 +283,15 @@ class Builder
             ? "{$where->boolean->value} $where->column {$where->operator->value}"
             : "$where->column {$where->operator->value}";
         if ($where->operator->expectsArray() && is_array($where->value)) {
-            foreach ($where->value as $val) {
-                $this->addBinding($val);
-            }
+            $this->addBindings($where->value);
             $param = implode(', ', array_fill(0, count($where->value), '?'));
             return "$compiled ($param)";
         } else {
             if ($where->value instanceof Expression) {
-                return "$compiled {$where->value->expression}";
+                if ($where->value instanceof VariableExpression) {
+                    $this->addBindings($where->value->getBindings());
+                }
+                return "$compiled $where->value";
             } else {
                 $this->addBinding($where->value);
                 return "$compiled ?";
@@ -272,78 +299,25 @@ class Builder
         }
     }
 
-    protected function addBinding(mixed $value): void
+    protected function addBindings(array $bindings): void
+    {
+        foreach ($bindings as $binding) {
+            $this->addBinding($binding);
+        }
+    }
+
+    protected function addBinding(mixed $binding): void
     {
         $this->bindings[] = match (true) {
-            is_null($value) => [null, \PDO::PARAM_NULL],
-            is_bool($value) => [$value, \PDO::PARAM_BOOL],
-            is_int($value) => [$value, \PDO::PARAM_INT],
-            is_float($value), is_string($value) => [$value, \PDO::PARAM_STR],
-            is_array($value), is_object($value) => [json_encode($value), \PDO::PARAM_STR],
-            default => throw new \InvalidArgumentException(sprintf('Bindings with type %s are not allowed', gettype($value)))
+            is_null($binding) => [null, \PDO::PARAM_NULL],
+            is_bool($binding) => [$binding, \PDO::PARAM_BOOL],
+            is_int($binding) => [$binding, \PDO::PARAM_INT],
+            is_float($binding), is_string($binding) => [$binding, \PDO::PARAM_STR],
+            is_array($binding), is_object($binding) => [json_encode($binding), \PDO::PARAM_STR],
+            default => throw new \InvalidArgumentException(sprintf('Bindings with type %s are not allowed', gettype($binding)))
         };
     }
 
-    protected function prepareFetch(array $constructorArgs = []): PDOStatement
-    {
-        $statement = $this->compileSelect();
-        $this->bindValues($statement);
-        $statement->setFetchMode($this->fetchMode, $this->className, ...$constructorArgs);
-        $statement->execute();
-        return $statement;
-    }
-
-    public function fetch(...$constructorArgs): mixed
-    {
-        return $this->prepareFetch($constructorArgs)->fetch();
-    }
-
-    public function fetchAll(...$constructorArgs): array
-    {
-        return $this->prepareFetch($constructorArgs)->fetchAll();
-    }
-
-    public function update(array $values): void
-    {
-        $statement = $this->compileUpdate($values);
-        $this->bindValues($statement);
-        $statement->execute();
-    }
-
-    public function insert(array $values): int
-    {
-        $statement = $this->compileInsert($values);
-        $this->bindValues($statement);
-        $statement->execute();
-        return (int)$this->connection->lastInsertId();
-    }
-
-    public function insertIgnore(array $values): int
-    {
-        $statement = $this->compileInsert($values, true);
-        $this->bindValues($statement);
-        $statement->execute();
-        return (int)$this->connection->lastInsertId();
-    }
-
-    public function delete(): bool
-    {
-        $statement = $this->compileDelete();
-        $this->bindValues($statement);
-        return $statement->execute();
-    }
-
-    public function setFetchMode(int $fetchMode): Builder
-    {
-        $this->fetchMode = $fetchMode;
-        return $this;
-    }
-
-    public function setClassName(string $className): Builder
-    {
-        $this->className = $className;
-        return $this;
-    }
 
     protected function bindValues(PDOStatement $statement): void
     {
@@ -392,8 +366,98 @@ class Builder
         return $statement;
     }
 
+    //</editor-fold>
+
+    //<editor-fold description="Internal PDO">
+    protected function prepareSelect(): PDOStatement
+    {
+        return $this->prepareStatement($this->compileSelect());
+    }
+
+    protected function prepareFetch(array $constructorArgs = []): PDOStatement
+    {
+        $statement = $this->prepareSelect();
+        $this->bindValues($statement);
+        $statement->setFetchMode($this->fetchMode, $this->className, ...$constructorArgs);
+        $statement->execute();
+        return $statement;
+    }
+
+    protected function prepareUpdate(array $values): PDOStatement
+    {
+        return $this->prepareStatement($this->compileUpdate($values));
+    }
+
+    protected function prepareInsert(array $values, bool $ignore = false): PDOStatement
+    {
+        return $this->prepareStatement($this->compileInsert($values, $ignore));
+    }
+
+    protected function prepareDelete(): PDOStatement
+    {
+        return $this->prepareStatement($this->compileDelete());
+    }
+
     protected function prepareStatement(string $statement): PDOStatement|false
     {
         return $this->connection->prepare($statement, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    }
+
+    //</editor-fold>
+
+    //<editor-fold description="Public execute Query">
+
+    public function fetch(...$constructorArgs): mixed
+    {
+        return $this->prepareFetch($constructorArgs)->fetch();
+    }
+
+    public function fetchAll(...$constructorArgs): array
+    {
+        return $this->prepareFetch($constructorArgs)->fetchAll();
+    }
+
+    public function update(array $values): void
+    {
+        $statement = $this->prepareUpdate($values);
+        $this->bindValues($statement);
+        $statement->execute();
+    }
+
+    public function insert(array $values): int
+    {
+        $statement = $this->prepareInsert($values);
+        $this->bindValues($statement);
+        $statement->execute();
+        return (int)$this->connection->lastInsertId();
+    }
+
+    public function insertIgnore(array $values): int
+    {
+        $statement = $this->prepareInsert($values, true);
+        $this->bindValues($statement);
+        $statement->execute();
+        return (int)$this->connection->lastInsertId();
+    }
+
+    public function delete(): bool
+    {
+        $statement = $this->prepareDelete();
+        $this->bindValues($statement);
+        return $statement->execute();
+    }
+
+    //</editor-fold>
+
+    public function setFetchMode(int $fetchMode): Builder
+    {
+        $this->fetchMode = $fetchMode;
+        return $this;
+    }
+
+    public function setClassName(string $className): Builder
+    {
+        $this->className = $className;
+        return $this;
     }
 }
