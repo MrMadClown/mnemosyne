@@ -1,6 +1,7 @@
 <?php
 
 use MrMadClown\Mnemosyne\Builder;
+use MrMadClown\Mnemosyne\Direction;
 use MrMadClown\Mnemosyne\Expression;
 use MrMadClown\Mnemosyne\Operator;
 use MrMadClown\Mnemosyne\VariableExpression;
@@ -65,6 +66,22 @@ class BuilderTest extends TestCase
             ->setClassName('User')
             ->select('id')
             ->from('users')
+            ->fetchAll();
+    }
+
+    public function testSelectOderByMultiple()
+    {
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users ORDER BY id DESC, age ASC;')
+            ->willReturn($this->mockStatement());
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->orderBy('id')
+            ->orderBy('age', Direction::ASC)
             ->fetchAll();
     }
 
@@ -261,6 +278,26 @@ class BuilderTest extends TestCase
             ->setClassName('User')
             ->from('users')
             ->whereIn('age', [19, 29, 39])
+            ->fetchAll();
+    }
+
+    public function testSelectWhereInSubQuery()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE company_id IN (SELECT id FROM companies WHERE sector = ?);')
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(1))
+            ->method('bindValue')
+            ->withConsecutive([1, 'tech', PDO::PARAM_STR]);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->whereIn('company_id', fn(Builder $b) => $b->select('id')->from('companies')->where('sector', 'tech'))
             ->fetchAll();
     }
 
@@ -535,6 +572,26 @@ class BuilderTest extends TestCase
             ->leftJoin('sectors', 'company.sector_id', 'sectors.id')
             ->where('users.age', 30, Operator::LESS_EQUALS)
             ->where('sectors.name', 'tech')
+            ->fetchAll();
+    }
+
+    public function testSubQueryJoins()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT users.*, friends.count FROM users JOIN (SELECT user_id, COUNT(friend_id) AS count FROM friends GROUP BY user_id) AS friends ON friends.user_id = users.id;')
+            ->willReturn($statement);
+
+        $statement->expects(static::never())
+            ->method('bindValue');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'friends.count'])
+            ->join(fn(Builder $b) => $b->select(['user_id', 'COUNT(friend_id) AS count'])->from('friends')->as('friends')->groupBy('user_id'), 'friends.user_id', 'users.id')
             ->fetchAll();
     }
 

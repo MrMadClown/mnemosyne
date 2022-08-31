@@ -11,22 +11,34 @@ class Builder
     protected string $className;
 
     protected string $table;
+    protected string $alias;
     protected array $columns = ['*'];
+
     /** @var array<Join> */
     protected array $joins = [];
+    /** @var array<Where> */
     protected array $wheres = [];
+    /** @var array<Binding> */
     protected array $bindings = [];
+    /** @var array<string> */
     protected array $groupBy = [];
+    /** @var array<OrderBy> */
+    protected array $orderBy = [];
+
     protected int $limit;
 
-    protected string $orderBy;
-    protected Direction $orderByDirection = Direction::DESC;
 
     public function __construct(protected readonly \PDO $connection)
     {
     }
 
     //<editor-fold description="public Builder interface">
+
+    public function as(string $alias): Builder
+    {
+        $this->alias = $alias;
+        return $this;
+    }
 
     public function from(string $table): Builder
     {
@@ -74,6 +86,14 @@ class Builder
             } else {
                 $this->wheres = [$this->wheres];
             }
+        } else if (is_callable($value)) { //TODO function names
+            $builder = new Builder($this->connection);
+            call_user_func($value, $builder);
+            if (isset($builder->table)) {
+                $this->wheres[] = new Where($column, new VariableExpression($builder->compileSubSelect(), $builder->bindings), $operator, $boolean);
+            } else {
+                $this->wheres = empty($this->wheres) ? [$builder->wheres] : [$this->wheres, $builder->wheres];
+            }
         } else {
             $this->wheres[] = new Where($column, $value, $operator, $boolean);
         }
@@ -81,12 +101,12 @@ class Builder
         return $this;
     }
 
-    public function orWhere(callable|string $column, mixed $value, Operator $operator = Operator::EQUALS): Builder
+    public function orWhere(string $column, mixed $value, Operator $operator = Operator::EQUALS): Builder
     {
         return $this->where($column, $value, $operator, Logical::OR);
     }
 
-    public function orWhereNot(callable|string $column, mixed $value): Builder
+    public function orWhereNot(string $column, mixed $value): Builder
     {
         return $this->orWhere($column, $value, Operator::NOT_EQUALS);
     }
@@ -111,22 +131,22 @@ class Builder
         return $this->orWhere($column, null, Operator::IS_NOT);
     }
 
-    public function whereIn(string $column, array $value): Builder
+    public function whereIn(string $column, array|callable $value): Builder
     {
         return $this->where($column, $value, Operator::IN);
     }
 
-    public function orWhereIn(string $column, array $value): Builder
+    public function orWhereIn(string $column, array|callable $value): Builder
     {
         return $this->orWhere($column, $value, Operator::IN);
     }
 
-    public function whereNotIn(string $column, array $value): Builder
+    public function whereNotIn(string $column, array|callable $value): Builder
     {
         return $this->where($column, $value, Operator::NOT_IN);
     }
 
-    public function orWhereNotIn(string $column, array $value): Builder
+    public function orWhereNotIn(string $column, array|callable $value): Builder
     {
         return $this->orWhere($column, $value, Operator::NOT_IN);
     }
@@ -142,11 +162,17 @@ class Builder
     }
 
     /**
-     * @todo add callable as $left param type => call with new Builder instance => ad `as` method, should only compile select statements
+     * @todo add alias
      */
-    public function join(string $table, string $left, string $right, Operator $operator = Operator::EQUALS, JoinType $type = null): Builder
+    public function join(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS, JoinType $type = null): Builder
     {
-        $this->joins[] = new Join($table, $left, $right, $operator, $type);
+        if (is_callable($table)) { //TODO function names
+            $builder = new Builder($this->connection);
+            call_user_func($table, $builder);
+            $this->joins[] = new Join($builder->compileSubSelect(), $left, $right, $operator, $type, $builder->bindings);
+        } else {
+            $this->joins[] = new Join($table, $left, $right, $operator, $type);
+        }
         return $this;
     }
 
@@ -189,8 +215,7 @@ class Builder
 
     public function orderBy(string $orderBy, Direction $direction = Direction::DESC): Builder
     {
-        $this->orderBy = $orderBy;
-        $this->orderByDirection = $direction;
+        $this->orderBy[] = new OrderBy($orderBy, $direction);
         return $this;
     }
 
@@ -207,16 +232,21 @@ class Builder
     {
         $columns = implode(', ', $this->columns);
         return $this->processLimit(
-                $this->processOrderBy(
-                    $this->processGroupBy(
-                        $this->processWheres(
-                            $this->processJoins(
-                                "SELECT $columns FROM $this->table"
-                            )
+            $this->processOrderBy(
+                $this->processGroupBy(
+                    $this->processWheres(
+                        $this->processJoins(
+                            "SELECT $columns FROM $this->table"
                         )
                     )
                 )
-            ) . ';';
+            )
+        );
+    }
+
+    protected function compileSubSelect(): string
+    {
+        return $this->processAlias($this->compileSelect());
     }
 
     protected function compileUpdate(array $values): string
@@ -261,6 +291,20 @@ class Builder
         );
     }
 
+    protected function compileJoins(array $joins): string
+    {
+        return implode(' ', array_map(function (Join $join): string {
+                if (!empty($join->bindings)) {
+                    foreach ($join->bindings as $binding) {
+                        $this->addBinding($binding);
+                    }
+                }
+
+                return (string)$join;
+            }, $joins)
+        );
+    }
+
     protected function compileWhere(Where $where, bool $withBoolean = false): string
     {
         if ($where->operator->expectsArray() && is_array($where->value)) {
@@ -301,11 +345,12 @@ class Builder
     protected function addBinding(mixed $binding): void
     {
         $this->bindings[] = match (true) {
-            is_null($binding) => [null, \PDO::PARAM_NULL],
-            is_bool($binding) => [$binding, \PDO::PARAM_BOOL],
-            is_int($binding) => [$binding, \PDO::PARAM_INT],
-            is_float($binding), is_string($binding) => [$binding, \PDO::PARAM_STR],
-            is_array($binding), is_object($binding) => [json_encode($binding), \PDO::PARAM_STR],
+            is_null($binding) => new Binding(null, \PDO::PARAM_NULL),
+            is_bool($binding) => new Binding($binding, \PDO::PARAM_BOOL),
+            is_int($binding) => new Binding($binding, \PDO::PARAM_INT),
+            is_float($binding), is_string($binding) => new Binding($binding, \PDO::PARAM_STR),
+            $binding instanceof Binding => $binding,
+            is_array($binding), is_object($binding) => new Binding(json_encode($binding), \PDO::PARAM_STR),
             default => throw new \InvalidArgumentException(sprintf('Bindings with type %s are not allowed', gettype($binding)))
         };
     }
@@ -313,22 +358,22 @@ class Builder
     protected function bindValues(PDOStatement $statement): void
     {
         foreach ($this->bindings as $idx => $binding) {
-            $statement->bindValue($idx + 1, $binding[0], $binding[1]);
+            $statement->bindValue($idx + 1, $binding->value, $binding->type);
         }
     }
 
     protected function processWheres(string $statement): string
     {
         if (!empty($this->wheres)) {
-            return implode(' ', [$statement, 'WHERE', $this->compileWheres($this->wheres)]);
+            return sprintf('%s WHERE %s', $statement, $this->compileWheres($this->wheres));
         }
         return $statement;
     }
 
     protected function processOrderBy(string $statement): string
     {
-        if (isset($this->orderBy)) {
-            return implode(' ', [$statement, 'ORDER BY', $this->orderBy, $this->orderByDirection->value]);
+        if (!empty($this->orderBy)) {
+            return sprintf('%s ORDER BY %s', $statement, implode(', ', $this->orderBy));
         }
         return $statement;
     }
@@ -336,7 +381,7 @@ class Builder
     protected function processLimit(string $statement): string
     {
         if (isset($this->limit)) {
-            return implode(' ', [$statement, 'LIMIT', $this->limit]);
+            return sprintf('%s LIMIT %s', $statement, $this->limit);
         }
         return $statement;
     }
@@ -344,7 +389,7 @@ class Builder
     protected function processGroupBy(string $statement): string
     {
         if (!empty($this->groupBy)) {
-            return implode(' ', [$statement, 'GROUP BY', implode(', ', $this->groupBy)]);
+            return sprintf('%s GROUP BY %s', $statement, implode(', ', $this->groupBy));
         }
         return $statement;
     }
@@ -352,9 +397,17 @@ class Builder
     protected function processJoins(string $statement): string
     {
         if (!empty($this->joins)) {
-            return implode(' ', [$statement, implode(' ', $this->joins)]);
+            return implode(' ', [$statement, $this->compileJoins($this->joins)]);
         }
         return $statement;
+    }
+
+    protected function processAlias(string $statement): string
+    {
+        if (isset($this->alias)) {
+            return sprintf('(%s) AS %s', $statement, $this->alias);
+        }
+        return sprintf('(%s)', $statement);
     }
 
     //</editor-fold>
@@ -362,7 +415,7 @@ class Builder
     //<editor-fold description="Internal PDO">
     protected function prepareSelect(): PDOStatement
     {
-        return $this->prepareStatement($this->compileSelect());
+        return $this->prepareStatement($this->compileSelect() . ';');
     }
 
     protected function prepareFetch(array $constructorArgs = []): PDOStatement

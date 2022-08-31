@@ -2,6 +2,9 @@
 
 namespace MrMadClown\Mnemosyne;
 
+/**
+ * @internal
+ */
 final class Where
 {
     public function __construct(

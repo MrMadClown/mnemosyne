@@ -2,6 +2,9 @@
 
 namespace MrMadClown\Mnemosyne;
 
+/**
+ * @internal
+ */
 final class Join implements \Stringable
 {
     public function __construct(
@@ -9,7 +12,8 @@ final class Join implements \Stringable
         public readonly string    $left,
         public readonly string    $right,
         public readonly Operator  $operator = Operator::EQUALS,
-        public readonly ?JoinType $type = null
+        public readonly ?JoinType $type = null,
+        public readonly array     $bindings = []
     )
     {
     }
