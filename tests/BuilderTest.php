@@ -198,6 +198,26 @@ class BuilderTest extends TestCase
             ->fetchAll();
     }
 
+    public function testSelectWhereNestedStaticVariableExpression()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE some_date > ADDDATE(NOW(), ?);')
+            ->willReturn($statement);
+
+        $statement->expects(static::once())
+            ->method('bindValue')
+            ->with(1, 2, PDO::PARAM_INT);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('some_date', VariableExpression::ADDDATE(Expression::NOW(), 2), Operator::GREATER)
+            ->fetchAll();
+    }
+
     public function testSelectWhereBool()
     {
         $statement = $this->mockStatement();
@@ -236,7 +256,6 @@ class BuilderTest extends TestCase
             ->groupBy('age')
             ->fetchAll();
     }
-
 
     public function testSelectGroupedMultiple()
     {
@@ -418,6 +437,40 @@ class BuilderTest extends TestCase
             ->fetchAll();
     }
 
+    public function testArgumentCountError()
+    {
+        static::expectException(\ArgumentCountError::class);
+        static::expectExceptionMessage(
+            sprintf(
+                'Too few arguments to function %s::xorWhere(), 0 passed in %s on line 454 and exactly 1 expected',
+                Builder::class,
+                __FILE__
+            )
+        );
+
+        (new Builder($this->mockPDO()))
+            ->setClassName('User')
+            ->from('users')
+            ->xorWhere();
+    }
+
+    public function testBadMethodCallException()
+    {
+        static::expectException(\BadMethodCallException::class);
+        static::expectExceptionMessage(
+            sprintf(
+                'Call to undefined method %s::orWhat() in %s:471',
+                Builder::class,
+                __FILE__
+            )
+        );
+
+        (new Builder($this->mockPDO()))
+            ->setClassName('User')
+            ->from('users')
+            ->orWhat('id');
+    }
+
     public function testUpdate()
     {
         $statement = $this->mockStatement();
@@ -595,6 +648,44 @@ class BuilderTest extends TestCase
             ->fetchAll();
     }
 
+    public function testJoinInWhere()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT users.*, friends.count FROM users JOIN friends ON friends.user_id = users.id WHERE friends.friend_id = users.id;')
+            ->willReturn($statement);
+
+        $statement->expects(static::never())
+            ->method('bindValue');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'friends.count'])
+            ->where(fn(Builder $b) => $b->join('friends', 'friends.user_id', 'users.id')->where('friends.friend_id', new Expression('users.id')))
+            ->fetchAll();
+    }
+
+    public function testHaving()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT users.*, JSON_OBJECTAGG(preferences.key, preferences.value) as settings FROM users LEFT JOIN preferences ON preferences.user_id = users.id GROUP BY users.id HAVING settings->"$.notify" = ?;')
+            ->willReturn($statement);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'JSON_OBJECTAGG(preferences.key, preferences.value) as settings'])
+            ->leftJoin('preferences', 'preferences.user_id', 'users.id')
+            ->groupBy('users.id')
+            ->having('settings->"$.notify"', 1)
+            ->fetchAll();
+    }
 
     private function mockPDO(): MockObject&PDO
     {

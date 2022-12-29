@@ -4,7 +4,44 @@ namespace MrMadClown\Mnemosyne;
 
 use PDO;
 use PDOStatement;
+use function Symfony\Component\String\s;
 
+/**
+ * @method Builder whereNot(string $column, mixed $value = null)
+ * @method Builder whereIs(string $column, mixed $value = null)
+ * @method Builder whereIsNull(string $column)
+ * @method Builder whereIsNot(string $column, mixed $value = null)
+ * @method Builder whereIn(string $column, array $value)
+ * @method Builder whereLike(string $column, string $value)
+ * @method Builder whereLess(string $column, mixed $value = null)
+ * @method Builder whereGreater(string $column, mixed $value = null)
+ *
+ * @method Builder orWhere(string $column, mixed $value = null, Operator $operator = Operator::EQUALS)
+ * @method Builder orWhereNot(string $column, mixed $value = null)
+ * @method Builder orWhereIs(string $column, mixed $value = null)
+ * @method Builder orWhereIsNull(string $column)
+ * @method Builder orWhereIsNot(string $column, mixed $value = null)
+ * @method Builder orWhereIn(string $column, array $value)
+ * @method Builder orWhereLike(string $column, string $value)
+ * @method Builder orWhereLess(string $column, mixed $value = null)
+ * @method Builder orWhereGreater(string $column, mixed $value = null)
+ *
+ * @method Builder xorWhere(string $column, mixed $value = null, Operator $operator = Operator::EQUALS)
+ * @method Builder xorWhereNot(string $column, mixed $value = null)
+ * @method Builder xorWhereIs(string $column, mixed $value = null)
+ * @method Builder xorWhereIsNull(string $column)
+ * @method Builder xorWhereIsNot(string $column, mixed $value = null)
+ * @method Builder xorWhereIn(string $column, array $value)
+ * @method Builder xorWhereLike(string $column, string $value)
+ * @method Builder xorWhereLess(string $column, mixed $value = null)
+ * @method Builder xorWhereGreater(string $column, mixed $value = null)
+ *
+ * @method Builder crossJoin(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS)
+ * @method Builder leftJoin(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS)
+ * @method Builder leftOuterJoin(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS)
+ * @method Builder rightJoin(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS)
+ * @method Builder rightOuterJoin(callable|string $table, string $left, string $right, Operator $operator = Operator::EQUALS)
+ */
 class Builder
 {
     protected int $fetchMode = \PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE;
@@ -18,6 +55,8 @@ class Builder
     protected array $joins = [];
     /** @var array<Where> */
     protected array $wheres = [];
+    /** @var array<Where> */
+    protected array $havings = [];
     /** @var array<Binding> */
     protected array $bindings = [];
     /** @var array<string> */
@@ -26,7 +65,6 @@ class Builder
     protected array $orderBy = [];
 
     protected int $limit;
-
 
     public function __construct(protected readonly \PDO $connection)
     {
@@ -68,6 +106,39 @@ class Builder
         return $this;
     }
 
+    public function having(
+        callable|string $column,
+        mixed           $value = null,
+        Operator        $operator = Operator::EQUALS,
+        Logical         $boolean = Logical::AND
+    ): Builder
+    {
+        if (is_callable($column)) { //TODO function names
+            if (!empty($this->havings)) {
+                $havings = $this->havings;
+                $this->havings = [];
+            }
+            call_user_func($column, $this);
+            if (isset($havings)) {
+                $this->havings = [$havings, $this->havings];
+            } else {
+                $this->havings = [$this->havings];
+            }
+        } else if (is_callable($value)) { //TODO function names
+            $builder = new Builder($this->connection);
+            call_user_func($value, $builder);
+            if (isset($builder->table)) {
+                $this->havings[] = new Where($column, new VariableExpression($builder->compileSubSelect(), $builder->bindings), $operator, $boolean);
+            } else {
+                $this->havings = empty($this->havings) ? [$builder->havings] : [$this->havings, $builder->havings];
+            }
+        } else {
+            $this->havings[] = new Where($column, $value, $operator, $boolean);
+        }
+
+        return $this;
+    }
+
     public function where(
         callable|string $column,
         mixed           $value = null,
@@ -101,66 +172,6 @@ class Builder
         return $this;
     }
 
-    public function orWhere(string $column, mixed $value, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->where($column, $value, $operator, Logical::OR);
-    }
-
-    public function orWhereNot(string $column, mixed $value): Builder
-    {
-        return $this->orWhere($column, $value, Operator::NOT_EQUALS);
-    }
-
-    public function whereIsNull(string $column): Builder
-    {
-        return $this->where($column, null, Operator::IS);
-    }
-
-    public function whereIsNotNull(string $column): Builder
-    {
-        return $this->where($column, null, Operator::IS_NOT);
-    }
-
-    public function orWhereIsNull(string $column): Builder
-    {
-        return $this->orWhere($column, null, Operator::IS);
-    }
-
-    public function orWhereIsNotNull(string $column): Builder
-    {
-        return $this->orWhere($column, null, Operator::IS_NOT);
-    }
-
-    public function whereIn(string $column, array|callable $value): Builder
-    {
-        return $this->where($column, $value, Operator::IN);
-    }
-
-    public function orWhereIn(string $column, array|callable $value): Builder
-    {
-        return $this->orWhere($column, $value, Operator::IN);
-    }
-
-    public function whereNotIn(string $column, array|callable $value): Builder
-    {
-        return $this->where($column, $value, Operator::NOT_IN);
-    }
-
-    public function orWhereNotIn(string $column, array|callable $value): Builder
-    {
-        return $this->orWhere($column, $value, Operator::NOT_IN);
-    }
-
-    public function whereLike(string $column, string $value): Builder
-    {
-        return $this->where($column, $value, Operator::LIKE);
-    }
-
-    public function orWhereLike(string $column, string $value): Builder
-    {
-        return $this->orWhere($column, $value, Operator::LIKE);
-    }
-
     /**
      * @todo add alias
      */
@@ -174,31 +185,6 @@ class Builder
             $this->joins[] = new Join($table, $left, $right, $operator, $type);
         }
         return $this;
-    }
-
-    public function leftJoin(string $table, string $left, string $right, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->join($table, $left, $right, $operator, JoinType::LEFT);
-    }
-
-    public function leftOuterJoin(string $table, string $left, string $right, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->join($table, $left, $right, $operator, JoinType::LEFT_OUTER);
-    }
-
-    public function rightJoin(string $table, string $left, string $right, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->join($table, $left, $right, $operator, JoinType::RIGHT);
-    }
-
-    public function rightOuterJoin(string $table, string $left, string $right, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->join($table, $left, $right, $operator, JoinType::RIGHT_OUTER);
-    }
-
-    public function crossJoin(string $table, string $left, string $right, Operator $operator = Operator::EQUALS): Builder
-    {
-        return $this->join($table, $left, $right, $operator, JoinType::CROSS);
     }
 
     public function limit(int $limit): Builder
@@ -224,6 +210,71 @@ class Builder
         return $this->orderBy($orderBy, Direction::ASC);
     }
 
+    public function __call(string $name, array $arguments)
+    {
+        return match (true) {
+            str_contains(strtolower($name), 'having') => $this->callMagicWhere('having', $name, $arguments),
+            str_contains(strtolower($name), 'where') => $this->callMagicWhere('where', $name, $arguments),
+            str_ends_with($name, 'Join') => $this->callMagicJoin($name, $arguments),
+            default => static::throwBadMethodCallException($name, debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 1)[0])
+        };
+    }
+
+    protected function callMagicWhere(string $method, string $name, array $arguments): Builder
+    {
+        $column = $arguments[0] ?? static::throwArgumentCountError(
+            $name,
+            0,
+            debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2)[1],
+            1,
+        );
+
+        $boolean = match (true) {
+            str_starts_with($name, 'or') => Logical::OR,
+            str_starts_with($name, 'xor') => Logical::XOR,
+            default => Logical::AND
+        };
+        if (str_ends_with($name, 'Null')) {
+            $name = substr($name, 0, -4);
+            $value = null;
+        } else {
+            $value = $arguments[1] ?? null;
+        }
+
+        $operator = match (true) {
+            str_ends_with($name, 'IsNot') => Operator::IS_NOT,
+            str_ends_with($name, 'Not') => Operator::NOT_EQUALS,
+            str_ends_with($name, 'Is') => Operator::IS,
+            str_ends_with($name, 'NotIn') => Operator::NOT_IN,
+            str_ends_with($name, 'In') => Operator::IN,
+            str_ends_with($name, 'Like') => Operator::LIKE,
+            str_ends_with($name, 'Less') => Operator::LESS,
+            str_ends_with($name, 'Greater') => Operator::GREATER,
+            //If no operator is matched we expect a method call like ->xorWhere($column, $value, $operator)
+            default => $arguments[2] ?? Operator::EQUALS
+        };
+        return $this->$method($column, $value, $operator, $boolean);
+    }
+
+    protected function callMagicJoin(string $name, array $arguments): Builder
+    {
+        if (count($arguments) < 3) static::throwArgumentCountError(
+            $name,
+            \count($arguments),
+            \debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2)[1],
+            3
+        );
+        [$table, $left, $right] = $arguments;
+        $type = match (true) {
+            str_starts_with($name, 'cross') => JoinType::CROSS,
+            str_starts_with($name, 'leftOuter') => JoinType::LEFT_OUTER,
+            str_starts_with($name, 'left') => JoinType::LEFT,
+            str_starts_with($name, 'rightOuter') => JoinType::RIGHT_OUTER,
+            str_starts_with($name, 'right') => JoinType::RIGHT,
+            default => static::throwBadMethodCallException($name, \debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2)[1])
+        };
+        return $this->join($table, $left, $right, $arguments[3] ?? Operator::EQUALS, $type);
+    }
     //</editor-fold>
 
     //<editor-fold description="Internal query Builder">
@@ -233,10 +284,12 @@ class Builder
         $columns = implode(', ', $this->columns);
         return $this->processLimit(
             $this->processOrderBy(
-                $this->processGroupBy(
-                    $this->processWheres(
-                        $this->processJoins(
-                            "SELECT $columns FROM $this->table"
+                $this->processHaving(
+                    $this->processGroupBy(
+                        $this->processWheres(
+                            $this->processJoins(
+                                "SELECT $columns FROM $this->table"
+                            )
                         )
                     )
                 )
@@ -394,6 +447,14 @@ class Builder
         return $statement;
     }
 
+    protected function processHaving(string $statement): string
+    {
+        if (!empty($this->havings)) {
+            return sprintf('%s HAVING %s', $statement, $this->compileWheres($this->havings));
+        }
+        return $statement;
+    }
+
     protected function processJoins(string $statement): string
     {
         if (!empty($this->joins)) {
@@ -503,5 +564,33 @@ class Builder
     {
         $this->className = $className;
         return $this;
+    }
+
+    private static function throwArgumentCountError(string $methodName, int $count, array $backTrace, int $expectedCount): never
+    {
+        throw new \ArgumentCountError(
+            sprintf(
+                'Too few arguments to function %s::%s(), %s passed in %s on line %s and exactly %s expected',
+                static::class,
+                $methodName,
+                $count,
+                $backTrace['file'],
+                $backTrace['line'],
+                $expectedCount
+            )
+        );
+    }
+
+    private static function throwBadMethodCallException(string $methodName, array $backTrace): never
+    {
+        throw new \BadMethodCallException(
+            sprintf(
+                'Call to undefined method %s::%s() in %s:%s',
+                static::class,
+                $methodName,
+                $backTrace['file'],
+                $backTrace['line'],
+            )
+        );
     }
 }

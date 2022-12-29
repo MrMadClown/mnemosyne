@@ -9,7 +9,8 @@ abstract class BaseRepository implements Repository
 
     public function __construct(
         protected readonly \PDO $connection,
-        Model                   $model)
+        Model                   $model
+    )
     {
         $this->modelClassName = get_class($model);
         $this->table = $model::getTableName();
