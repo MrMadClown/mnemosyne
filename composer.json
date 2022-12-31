@@ -43,8 +43,5 @@
         "infection": [
             "php vendor/bin/infection --coverage=coverage"
         ]
-    },
-    "bin": [
-        "bin/make.php"
-    ]
+    }
 }
