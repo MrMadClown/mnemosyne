@@ -65,6 +65,7 @@ class Builder
     protected array $orderBy = [];
 
     protected int $limit;
+    protected int $offset;
 
     public function __construct(protected readonly \PDO $connection)
     {
@@ -193,6 +194,12 @@ class Builder
         return $this;
     }
 
+    public function offset(int $offset): Builder
+    {
+        $this->offset = $offset;
+        return $this;
+    }
+
     public function groupBy(string|array $groupBy): Builder
     {
         $this->groupBy = is_array($groupBy) ? $groupBy : [$groupBy];
@@ -282,13 +289,15 @@ class Builder
     protected function compileSelect(): string
     {
         $columns = implode(', ', $this->columns);
-        return $this->processLimit(
-            $this->processOrderBy(
-                $this->processHaving(
-                    $this->processGroupBy(
-                        $this->processWheres(
-                            $this->processJoins(
-                                "SELECT $columns FROM $this->table"
+        return $this->processOffset(
+            $this->processLimit(
+                $this->processOrderBy(
+                    $this->processHaving(
+                        $this->processGroupBy(
+                            $this->processWheres(
+                                $this->processJoins(
+                                    "SELECT $columns FROM $this->table"
+                                )
                             )
                         )
                     )
@@ -310,7 +319,13 @@ class Builder
             return "$column = $param";
         }, array_keys($values), $values));
 
-        return $this->processLimit($this->processOrderBy($this->processWheres("UPDATE $this->table SET $setString"))) . ';';
+        return $this->processOffset(
+                $this->processLimit(
+                    $this->processOrderBy(
+                        $this->processWheres("UPDATE $this->table SET $setString")
+                    )
+                )
+            ) . ';';
     }
 
     protected function compileInsert(array $values, bool $ignore = false): string
@@ -323,7 +338,15 @@ class Builder
 
     protected function compileDelete(): string
     {
-        return $this->processLimit($this->processOrderBy($this->processWheres("DELETE FROM $this->table"))) . ';';
+        return $this->processOffset(
+                $this->processLimit(
+                    $this->processOrderBy(
+                        $this->processWheres(
+                            "DELETE FROM $this->table"
+                        )
+                    )
+                )
+            ) . ';';
     }
 
     protected function compileWheres(array $wheres): string
@@ -435,6 +458,14 @@ class Builder
     {
         if (isset($this->limit)) {
             return sprintf('%s LIMIT %s', $statement, $this->limit);
+        }
+        return $statement;
+    }
+
+    protected function processOffset(string $statement): string
+    {
+        if (isset($this->offset)) {
+            return sprintf('%s OFFSET %s', $statement, $this->offset);
         }
         return $statement;
     }

@@ -1,14 +1,16 @@
 <?php
 
+namespace MrMadClown\Mnemosyne\Tests;
+
 use MrMadClown\Mnemosyne\Builder;
 use MrMadClown\Mnemosyne\Direction;
 use MrMadClown\Mnemosyne\Expression;
 use MrMadClown\Mnemosyne\Operator;
 use MrMadClown\Mnemosyne\VariableExpression;
+use PDO;
 use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
 
-class BuilderTest extends TestCase
+class BuilderTest extends BaseTest
 {
     public function testSelectAll()
     {
@@ -51,6 +53,22 @@ class BuilderTest extends TestCase
             ->setClassName('User')
             ->from('users')
             ->limit(10)
+            ->fetchAll();
+    }
+
+    public function testSelectAllLimitOffset()
+    {
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users LIMIT 10 OFFSET 5;')
+            ->willReturn($this->mockStatement());
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->limit(10)
+            ->offset(5)
             ->fetchAll();
     }
 
@@ -442,9 +460,10 @@ class BuilderTest extends TestCase
         static::expectException(\ArgumentCountError::class);
         static::expectExceptionMessage(
             sprintf(
-                'Too few arguments to function %s::xorWhere(), 0 passed in %s on line 454 and exactly 1 expected',
+                'Too few arguments to function %s::xorWhere(), 0 passed in %s on line %s and exactly 1 expected',
                 Builder::class,
-                __FILE__
+                __FILE__,
+                __LINE__ + 7
             )
         );
 
@@ -459,9 +478,10 @@ class BuilderTest extends TestCase
         static::expectException(\BadMethodCallException::class);
         static::expectExceptionMessage(
             sprintf(
-                'Call to undefined method %s::orWhat() in %s:471',
+                'Call to undefined method %s::orWhat() in %s:%s',
                 Builder::class,
-                __FILE__
+                __FILE__,
+                __LINE__ + 7
             )
         );
 
@@ -685,19 +705,5 @@ class BuilderTest extends TestCase
             ->groupBy('users.id')
             ->having('settings->"$.notify"', 1)
             ->fetchAll();
-    }
-
-    private function mockPDO(): MockObject&PDO
-    {
-        return $this->getMockBuilder(\PDO::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-    }
-
-    private function mockStatement(): MockObject&PDOStatement
-    {
-        return $this->getMockBuilder(\PDOStatement::class)
-            ->disableOriginalConstructor()
-            ->getMock();
     }
 }
