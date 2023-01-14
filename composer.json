@@ -11,7 +11,7 @@
     },
     "require-dev": {
         "infection/infection": "0.26.16",
-        "phpunit/phpunit": "9.5.27"
+        "phpunit/phpunit": "9.5.28"
     },
     "config": {
         "preferred-install": "dist",
