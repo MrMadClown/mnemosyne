@@ -10,7 +10,7 @@
         "ext-pdo_mysql": "*"
     },
     "require-dev": {
-        "infection/infection": "0.26.16",
+        "infection/infection": "0.26.18",
         "phpunit/phpunit": "9.5.28"
     },
     "config": {
