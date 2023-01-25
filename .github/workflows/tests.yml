@@ -37,7 +37,9 @@ jobs:
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
+      - name: Check PHP
+        run: php -v
       - name: Run test suite
-        run: php vendor/bin/phpunit --configuration phpunit.xml --coverage-xml=coverage/coverage-xml --log-junit=coverage/junit.xml
+        run: XDEBUG_MODE=coverage php vendor/bin/phpunit --configuration phpunit.xml --coverage-xml=coverage/coverage-xml --log-junit=coverage/junit.xml
       - name: Run infected test suite
         run: php vendor/bin/infection --coverage=coverage --min-msi=90 --min-covered-msi=90
