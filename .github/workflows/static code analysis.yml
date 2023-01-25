@@ -12,5 +12,7 @@ jobs:
       - name: PHPStan Static Analysis
         uses: php-actions/phpstan@master
         with:
+          php_extensions: ext-pdo_mysql
+          php_version: 8.1
           path: src/
           level: 6
