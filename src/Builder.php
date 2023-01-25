@@ -4,7 +4,6 @@ namespace MrMadClown\Mnemosyne;
 
 use PDO;
 use PDOStatement;
-use function Symfony\Component\String\s;
 
 /**
  * @method Builder whereNot(string $column, mixed $value = null)
@@ -44,7 +43,7 @@ use function Symfony\Component\String\s;
  */
 class Builder
 {
-    protected int $fetchMode = \PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE;
+    protected int $fetchMode = PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE;
     protected string $className;
 
     protected string $table;
@@ -328,7 +327,7 @@ class Builder
             ) . ';';
     }
 
-    protected function compileInsert(array $values, bool $ignore = false): string
+    protected function compileInsert(array $values, bool $ignore): string
     {
         $valueParam = $this->compileArrayBinding($values);
         $columns = implode(', ', array_keys($values));
@@ -381,7 +380,7 @@ class Builder
         );
     }
 
-    protected function compileWhere(Where $where, bool $withBoolean = false): string
+    protected function compileWhere(Where $where, bool $withBoolean): string
     {
         if ($where->operator->expectsArray() && is_array($where->value)) {
             $param = '(' . $this->compileArrayBinding($where->value) . ')';
@@ -514,7 +513,7 @@ class Builder
     {
         $statement = $this->prepareSelect();
         $this->bindValues($statement);
-        $statement->setFetchMode($this->fetchMode, $this->className, ...$constructorArgs);
+        $statement->setFetchMode($this->fetchMode, $this->className ?? null, ...$constructorArgs);
         $statement->execute();
         return $statement;
     }
