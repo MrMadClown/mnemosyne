@@ -29,6 +29,7 @@ class BuilderTest extends BaseTest
             ->from('users')
             ->fetchAll();
     }
+
     public function testSelectFetchModeAssoc()
     {
         $statement = $this->mockStatement();
@@ -180,6 +181,11 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->with(1, 25, PDO::PARAM_INT);
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetch');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -199,6 +205,11 @@ class BuilderTest extends BaseTest
         $statement->expects(static::never())
             ->method('bindValue');
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -217,6 +228,11 @@ class BuilderTest extends BaseTest
 
         $statement->expects(static::never())
             ->method('bindValue');
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -238,6 +254,11 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->with(1, 'my-unique-user-id', PDO::PARAM_STR);
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -257,6 +278,11 @@ class BuilderTest extends BaseTest
         $statement->expects(static::once())
             ->method('bindValue')
             ->with(1, 13.5, PDO::PARAM_STR);
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -278,6 +304,11 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->with(1, 2, PDO::PARAM_INT);
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -298,6 +329,11 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->with(1, true, PDO::PARAM_BOOL);
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -317,6 +353,11 @@ class BuilderTest extends BaseTest
         $statement->expects(static::never())
             ->method('bindValue');
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -335,6 +376,11 @@ class BuilderTest extends BaseTest
 
         $statement->expects(static::never())
             ->method('bindValue');
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -360,6 +406,11 @@ class BuilderTest extends BaseTest
                 [3, 39, PDO::PARAM_INT],
             );
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -382,6 +433,11 @@ class BuilderTest extends BaseTest
         $statement->expects(static::exactly(1))
             ->method('bindValue')
             ->withConsecutive([1, 'tech', PDO::PARAM_STR]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -407,6 +463,11 @@ class BuilderTest extends BaseTest
                 [3, 39, PDO::PARAM_INT],
             );
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -423,10 +484,14 @@ class BuilderTest extends BaseTest
             ->with('SELECT * FROM users WHERE age = ? AND gender = ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
             ->willReturn($statement);
 
-
         $statement->expects(static::exactly(2))
             ->method('bindValue')
             ->withConsecutive([1, 25, PDO::PARAM_INT], [2, 'female', PDO::PARAM_STR]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -445,10 +510,14 @@ class BuilderTest extends BaseTest
             ->with('SELECT * FROM users WHERE age = ? OR age = ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
             ->willReturn($statement);
 
-
         $statement->expects(static::exactly(2))
             ->method('bindValue')
             ->withConsecutive([1, 20, PDO::PARAM_INT], [2, 30, PDO::PARAM_INT]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
 
         (new Builder($pdo))
             ->setClassName('User')
@@ -465,7 +534,7 @@ class BuilderTest extends BaseTest
         $pdo->expects(static::once())
             ->method('prepare')
             ->with(
-                'SELECT * FROM users WHERE gender = ? AND (age > ? AND age < ?) OR job IS ?;',
+                'SELECT * FROM users WHERE gender = ? AND (age > ? OR age < ?) OR job IS ?;',
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             )
             ->willReturn($statement);
@@ -474,11 +543,16 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->withConsecutive([1, 'female', PDO::PARAM_STR], [2, 20, PDO::PARAM_INT], [3, 30, PDO::PARAM_INT], [4, null, PDO::PARAM_NULL]);
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
             ->where('gender', 'female')
-            ->where(fn(Builder $b) => $b->where('age', 20, Operator::GREATER)->where('age', 30, Operator::LESS))
+            ->where(fn(Builder $b) => $b->where('age', 20, Operator::GREATER)->orWhere('age', 30, Operator::LESS))
             ->orWhereIsNull('job')
             ->fetchAll();
     }
@@ -501,6 +575,11 @@ class BuilderTest extends BaseTest
                 [4, null, PDO::PARAM_NULL]
             );
 
+        $statement->expects(static::once())
+            ->method('execute');
+        $statement->expects(static::once())
+            ->method('fetchAll');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -510,7 +589,19 @@ class BuilderTest extends BaseTest
             ->fetchAll();
     }
 
-    public function testArgumentCountError()
+    public function testBindingNotAllowedError()
+    {
+        static::expectException(\InvalidArgumentException::class);
+        static::expectExceptionMessage('Bindings with type resource are not allowed');
+        $r = fopen('php://stdin', 'r');
+        (new Builder($this->mockPDO()))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', $r)
+            ->fetch();
+    }
+
+    public function testWhereArgumentCountError()
     {
         static::expectException(\ArgumentCountError::class);
         static::expectExceptionMessage(
@@ -528,13 +619,22 @@ class BuilderTest extends BaseTest
             ->xorWhere();
     }
 
-    public function testBadMethodCallException()
+    public function joinArgumentCountErrorProvider(): \Generator
     {
-        static::expectException(\BadMethodCallException::class);
+        yield [[]];
+        yield [['profiles']];
+        yield [['profiles', 'profiles.user_id']];
+    }
+
+    /** @dataProvider joinArgumentCountErrorProvider */
+    public function testJoinArgumentCountError(array $arguments)
+    {
+        static::expectException(\ArgumentCountError::class);
         static::expectExceptionMessage(
             sprintf(
-                'Call to undefined method %s::orWhat() in %s:%s',
+                'Too few arguments to function %s::crossJoin(), %s passed in %s on line %s and exactly 3 expected',
                 Builder::class,
+                count($arguments),
                 __FILE__,
                 __LINE__ + 7
             )
@@ -543,7 +643,34 @@ class BuilderTest extends BaseTest
         (new Builder($this->mockPDO()))
             ->setClassName('User')
             ->from('users')
-            ->orWhat('id');
+            ->crossJoin(...$arguments);
+    }
+
+    public function badMethodsProvider(): \Generator
+    {
+        yield ['orDuck', ['quacks']];
+        yield ['whereTheDuck', ['quacks']];
+        yield ['duckJoin', ['ducks', 'swans', 'birds']];
+    }
+
+    /** @dataProvider badMethodsProvider */
+    public function testBadMethodCallException(string $method, array $arguments)
+    {
+        static::expectException(\BadMethodCallException::class);
+        static::expectExceptionMessage(
+            sprintf(
+                'Call to undefined method %s::%s() in %s:%s',
+                Builder::class,
+                $method,
+                __FILE__,
+                __LINE__ + 7
+            )
+        );
+
+        (new Builder($this->mockPDO()))
+            ->setClassName('User')
+            ->from('users')
+            ->$method(...$arguments);
     }
 
     public function testMagicXorWhere()
@@ -562,11 +689,41 @@ class BuilderTest extends BaseTest
                 [2, 'tech', PDO::PARAM_STR],
             );
 
+        $statement->expects(static::once())
+            ->method('execute');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
             ->where('age', 25)
             ->xorWhere('sector', 'tech')
+            ->fetch();
+    }
+
+    public function testMagicXorWhereWithOperator()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? XOR sector != ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive(
+                [1, 25, PDO::PARAM_INT],
+                [2, 'tech', PDO::PARAM_STR],
+            );
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->xorWhere('sector', 'tech', Operator::NOT_EQUALS)
             ->fetch();
     }
 
@@ -586,6 +743,9 @@ class BuilderTest extends BaseTest
                 [2, 'tech', PDO::PARAM_STR],
             );
 
+        $statement->expects(static::once())
+            ->method('execute');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
@@ -594,7 +754,7 @@ class BuilderTest extends BaseTest
             ->fetch();
     }
 
-    public function testMagicXorWhereNull()
+    public function testMagicXorWhereIsNull()
     {
         $statement = $this->mockStatement();
         $pdo = $this->mockPDO();
@@ -607,11 +767,182 @@ class BuilderTest extends BaseTest
             ->method('bindValue')
             ->withConsecutive([1, 25, PDO::PARAM_INT], [2, null, PDO::PARAM_NULL]);
 
+        $statement->expects(static::once())
+            ->method('execute');
+
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
             ->where('age', 25)
             ->xorWhereIsNull('sector')
+            ->fetch();
+    }
+
+    public function testMagicXorWhereIsNotNull()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? XOR sector IS NOT ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, null, PDO::PARAM_NULL]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->xorWhereIsNotNull('sector')
+            ->fetch();
+    }
+
+    public function testMagicWhereNull()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND sector IS ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, null, PDO::PARAM_NULL]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereIsNull('sector')
+            ->fetch();
+    }
+
+    public function testMagicWhereLike()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND sector LIKE ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, '%tech%', PDO::PARAM_STR]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereLike('sector', '%tech%')
+            ->fetch();
+    }
+
+    public function testMagicWhereIn()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND sector IN (?, ?);', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(3))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, '%tech%', PDO::PARAM_STR], [3, '%film%', PDO::PARAM_STR]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereIn('sector', ['%tech%', '%film%'])
+            ->fetch();
+    }
+
+    public function testMagicWhereNotIn()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND sector NOT IN (?, ?);', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(3))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, '%tech%', PDO::PARAM_STR], [3, '%film%', PDO::PARAM_STR]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereNotIn('sector', ['%tech%', '%film%'])
+            ->fetch();
+    }
+
+    public function testMagicWhereLess()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND comp < ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, 25000, PDO::PARAM_INT]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereLess('comp', 25000)
+            ->fetch();
+    }
+
+    public function testMagicWhereGreater()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with('SELECT * FROM users WHERE age = ? AND comp > ?;', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive([1, 25, PDO::PARAM_INT], [2, 25000, PDO::PARAM_INT]);
+
+        $statement->expects(static::once())
+            ->method('execute');
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->where('age', 25)
+            ->whereGreater('comp', 25000)
             ->fetch();
     }
 
@@ -649,6 +980,10 @@ class BuilderTest extends BaseTest
             ->with('INSERT INTO users (age, gender, job, updated_at) VALUES (?, ?, ?, NOW());', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION])
             ->willReturn($statement);
 
+        $pdo->expects(static::once())
+            ->method('lastInsertId')
+            ->willReturn('1');
+
         $statement->expects(static::exactly(3))
             ->method('bindValue')
             ->withConsecutive(
@@ -660,7 +995,7 @@ class BuilderTest extends BaseTest
         $statement->expects(static::once())
             ->method('execute');
 
-        (new Builder($pdo))
+        $id = (new Builder($pdo))
             ->into('users')
             ->insert([
                 'age' => 25,
@@ -668,6 +1003,7 @@ class BuilderTest extends BaseTest
                 'job' => 'Software Developer',
                 'updated_at' => Expression::NOW()
             ]);
+        static::assertEquals(1, $id);
     }
 
     public function testInsertJSON()
@@ -765,7 +1101,7 @@ class BuilderTest extends BaseTest
         $pdo->expects(static::once())
             ->method('prepare')
             ->with(
-                'SELECT * FROM users LEFT JOIN companies ON user.company_id = companies.id LEFT JOIN sectors ON company.sector_id = sectors.id WHERE users.age <= ? AND sectors.name = ?;',
+                'SELECT * FROM users LEFT JOIN companies AS c ON user.company_id = c.id LEFT OUTER JOIN sectors ON c.sector_id = sectors.id WHERE users.age <= ? AND sectors.name = ?;',
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             )
             ->willReturn($statement);
@@ -780,8 +1116,95 @@ class BuilderTest extends BaseTest
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
-            ->leftJoin('companies', 'user.company_id', 'companies.id')
-            ->leftJoin('sectors', 'company.sector_id', 'sectors.id')
+            ->leftJoin('companies', 'user.company_id', 'c.id', Operator::EQUALS, 'c')
+            ->leftOuterJoin('sectors', 'c.sector_id', 'sectors.id')
+            ->where('users.age', 30, Operator::LESS_EQUALS)
+            ->where('sectors.name', 'tech')
+            ->fetchAll();
+    }
+
+    public function testCrossJoins()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT * FROM users CROSS JOIN companies ON user.company_id = companies.id CROSS JOIN sectors ON company.sector_id = sectors.id WHERE users.age <= ? AND sectors.name = ?;',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive(
+                [1, 30, PDO::PARAM_INT],
+                [2, 'tech', PDO::PARAM_STR],
+            );
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->crossJoin('companies', 'user.company_id', 'companies.id')
+            ->crossJoin('sectors', 'company.sector_id', 'sectors.id')
+            ->where('users.age', 30, Operator::LESS_EQUALS)
+            ->where('sectors.name', 'tech')
+            ->fetchAll();
+    }
+
+    public function testRightJoins()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT * FROM users RIGHT JOIN companies ON user.company_id = companies.id RIGHT OUTER JOIN sectors ON company.sector_id = sectors.id WHERE users.age <= ? AND sectors.name = ?;',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive(
+                [1, 30, PDO::PARAM_INT],
+                [2, 'tech', PDO::PARAM_STR],
+            );
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->rightJoin('companies', 'user.company_id', 'companies.id')
+            ->rightOuterJoin('sectors', 'company.sector_id', 'sectors.id')
+            ->where('users.age', 30, Operator::LESS_EQUALS)
+            ->where('sectors.name', 'tech')
+            ->fetchAll();
+    }
+
+    public function testJoinsWithOperators()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT * FROM users RIGHT JOIN companies ON user.company_id != companies.id RIGHT OUTER JOIN sectors ON company.sector_id < sectors.id WHERE users.age <= ? AND sectors.name = ?;',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(2))
+            ->method('bindValue')
+            ->withConsecutive(
+                [1, 30, PDO::PARAM_INT],
+                [2, 'tech', PDO::PARAM_STR],
+            );
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->rightJoin('companies', 'user.company_id', 'companies.id', Operator::NOT_EQUALS)
+            ->rightOuterJoin('sectors', 'company.sector_id', 'sectors.id', Operator::LESS)
             ->where('users.age', 30, Operator::LESS_EQUALS)
             ->where('sectors.name', 'tech')
             ->fetchAll();
@@ -794,19 +1217,29 @@ class BuilderTest extends BaseTest
         $pdo->expects(static::once())
             ->method('prepare')
             ->with(
-                'SELECT users.*, friends.count FROM users JOIN (SELECT user_id, COUNT(friend_id) AS count FROM friends GROUP BY user_id) AS friends ON friends.user_id = users.id;',
+                'SELECT users.*, friends.count FROM users JOIN (SELECT user_id, COUNT(friend_id) AS count FROM friends WHERE friends.active = ? GROUP BY user_id) AS friends ON friends.user_id = users.id;',
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             )
             ->willReturn($statement);
 
-        $statement->expects(static::never())
-            ->method('bindValue');
+        $statement->expects(static::once())
+            ->method('bindValue')
+            ->with(1, true, PDO::PARAM_BOOL);
 
         (new Builder($pdo))
             ->setClassName('User')
             ->from('users')
             ->select(['users.*', 'friends.count'])
-            ->join(fn(Builder $b) => $b->select(['user_id', 'COUNT(friend_id) AS count'])->from('friends')->as('friends')->groupBy('user_id'), 'friends.user_id', 'users.id')
+            ->join(
+                fn(Builder $b) => $b
+                    ->select(['user_id', 'COUNT(friend_id) AS count'])
+                    ->from('friends')
+                    ->as('friends')
+                    ->where('friends.active', true)
+                    ->groupBy('user_id'),
+                'friends.user_id',
+                'users.id'
+            )
             ->fetchAll();
     }
 
@@ -852,6 +1285,92 @@ class BuilderTest extends BaseTest
             ->leftJoin('preferences', 'preferences.user_id', 'users.id')
             ->groupBy('users.id')
             ->having('settings->"$.notify"', 1)
+            ->fetchAll();
+    }
+
+    public function testHavingNoPreferences()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT users.*, JSON_OBJECTAGG(preferences.key, preferences.value) as settings FROM users LEFT JOIN preferences ON preferences.user_id = users.id GROUP BY users.id HAVING settings = ?;',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::once())
+            ->method('bindValue')
+            ->with(1, '{}', PDO::PARAM_STR);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'JSON_OBJECTAGG(preferences.key, preferences.value) as settings'])
+            ->leftJoin('preferences', 'preferences.user_id', 'users.id')
+            ->groupBy('users.id')
+            ->having('settings', new \stdClass())
+            ->fetchAll();
+    }
+
+    public function testHavingCallableColumn()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT users.*, JSON_OBJECTAGG(preferences.key, preferences.value) as settings FROM users LEFT JOIN preferences ON preferences.user_id = users.id GROUP BY users.id HAVING (users.age > ? AND users.age < ?) OR settings->"$.notify" = ?;',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(3))
+            ->method('bindValue')
+            ->withConsecutive([1, 20, PDO::PARAM_INT], [2, 30, PDO::PARAM_INT], [3, 1, PDO::PARAM_INT]);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'JSON_OBJECTAGG(preferences.key, preferences.value) as settings'])
+            ->leftJoin('preferences', 'preferences.user_id', 'users.id')
+            ->groupBy('users.id')
+            ->having(fn(Builder $b) => $b
+                ->having('users.age', 20, Operator::GREATER)
+                ->having('users.age', 30, Operator::LESS)
+            )
+            ->orHaving('settings->"$.notify"', 1)
+            ->fetchAll();
+    }
+
+    public function testHavingCallableValue()
+    {
+        $statement = $this->mockStatement();
+        $pdo = $this->mockPDO();
+        $pdo->expects(static::once())
+            ->method('prepare')
+            ->with(
+                'SELECT users.*, JSON_OBJECTAGG(preferences.key, preferences.value) as settings FROM users LEFT JOIN preferences ON preferences.user_id = users.id GROUP BY users.id HAVING (users.age > ? AND users.age < ?) OR users.company_id IN (SELECT id FROM companies WHERE sector = ?);',
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            )
+            ->willReturn($statement);
+
+        $statement->expects(static::exactly(3))
+            ->method('bindValue')
+            ->withConsecutive([1, 20, PDO::PARAM_INT], [2, 30, PDO::PARAM_INT], [3, 'tech', PDO::PARAM_STR]);
+
+        (new Builder($pdo))
+            ->setClassName('User')
+            ->from('users')
+            ->select(['users.*', 'JSON_OBJECTAGG(preferences.key, preferences.value) as settings'])
+            ->leftJoin('preferences', 'preferences.user_id', 'users.id')
+            ->groupBy('users.id')
+            ->having(fn(Builder $b) => $b
+                ->having('users.age', 20, Operator::GREATER)
+                ->having('users.age', 30, Operator::LESS)
+            )
+            ->orHavingIn('users.company_id', fn(Builder $b) => $b->select('id')->from('companies')->where('sector', 'tech'))
             ->fetchAll();
     }
 }

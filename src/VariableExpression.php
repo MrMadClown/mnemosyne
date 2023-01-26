@@ -4,16 +4,19 @@ namespace MrMadClown\Mnemosyne;
 
 class VariableExpression extends Expression
 {
+    /** @param array<int, mixed> $bindings */
     public function __construct(string $expression, private readonly array $bindings)
     {
         parent::__construct($expression);
     }
 
+    /** @return array<int, mixed> */
     public function getBindings(): array
     {
         return $this->bindings;
     }
 
+    /** @param array<int, mixed> $args */
     public static function __callStatic(string $method, array $args): Expression
     {
         $bindings = [];
@@ -24,7 +27,7 @@ class VariableExpression extends Expression
                         $bindings[] = $binding;
                     }
                 }
-                return (string)$val;
+                return $val;
             }
             $bindings[] = $val;
             return '?';

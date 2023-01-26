@@ -4,6 +4,7 @@ namespace MrMadClown\Mnemosyne;
 
 abstract class BaseRepository implements Repository
 {
+    /** @var class-string */
     private readonly string $modelClassName;
     private readonly string $table;
 
@@ -12,7 +13,7 @@ abstract class BaseRepository implements Repository
         Model                   $model
     )
     {
-        $this->modelClassName = get_class($model);
+        $this->modelClassName = $model::class;
         $this->table = $model::getTableName();
     }
 

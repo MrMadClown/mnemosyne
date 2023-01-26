@@ -7,21 +7,24 @@ namespace MrMadClown\Mnemosyne;
  */
 final class Join implements \Stringable
 {
+    /** @param array<int, Binding> $bindings */
     public function __construct(
         public readonly string    $table,
         public readonly string    $left,
         public readonly string    $right,
         public readonly Operator  $operator = Operator::EQUALS,
         public readonly ?JoinType $type = null,
-        public readonly array     $bindings = []
+        public readonly ?string   $alias = null,
+        public readonly array     $bindings = [],
     )
     {
     }
 
     public function __toString(): string
     {
-        return isset($this->type)
-            ? "{$this->type->value} JOIN $this->table ON $this->left {$this->operator->value} $this->right"
-            : "JOIN $this->table ON $this->left {$this->operator->value} $this->right";
+        $tableWithAlias = isset($this->alias) ? "$this->table AS $this->alias" : $this->table;
+        $join = isset($this->type) ? "{$this->type->value} JOIN" : "JOIN";
+
+        return "$join $tableWithAlias ON $this->left {$this->operator->value} $this->right";
     }
 }
