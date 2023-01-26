@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Latest Stable Version](https://poser.pugx.org/mrmadclown/mnemosyne/v/stable.svg)](https://packagist.org/packages/mrmadclown/mnemosyne)
 [![Total Downloads](https://poser.pugx.org/mrmadclown/mnemosyne/downloads)](https://packagist.org/packages/mrmadclown/mnemosyne)
+![example workflow](https://github.com/mrmadclown/mnemosyne/actions/workflows/tests.yml/badge.svg?event=push)
+![example workflow](https://github.com/mrmadclown/mnemosyne/actions/workflows/static%20code%20analysis.yml/badge.svg?event=push)
 
 This is a simple PDO based mysql Query Builder
 
