@@ -617,7 +617,7 @@ class Builder
         $statement = $this->prepareInsert($values);
         $this->bindValues($statement);
         $statement->execute();
-        return $this->connection->lastInsertId();
+        return (int)$this->connection->lastInsertId();
     }
 
     /** @param array<string, mixed> $values */
@@ -626,7 +626,7 @@ class Builder
         $statement = $this->prepareInsert($values, true);
         $this->bindValues($statement);
         $statement->execute();
-        return $this->connection->lastInsertId();
+        return (int)$this->connection->lastInsertId();
     }
 
     public function delete(): bool
